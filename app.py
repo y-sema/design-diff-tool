@@ -9,7 +9,6 @@ def index():
 
 @app.route("/compare", methods=["POST"])
 def compare():
-    # フォームの値をそのまま取得
     url_a = request.form["url_a"]
     url_b = request.form["url_b"]
     basic_id_a = request.form.get("basic_id_a", "")
@@ -19,23 +18,22 @@ def compare():
     width = int(request.form.get("width", 1280))
     diff_color = request.form.get("diff_color", "#ff0000")
 
-    # Basic認証がある場合はURLに組み込む
+    # Basic認証情報の埋め込み
     if basic_id_a and basic_pw_a:
         url_a = url_a.replace("://", f"://{basic_id_a}:{basic_pw_a}@")
     if basic_id_b and basic_pw_b:
         url_b = url_b.replace("://", f"://{basic_id_b}:{basic_pw_b}@")
 
-    # WordPressの公式無料スクショAPIのURLを生成
-    # ※ width(w)パラメータを付与
-    api_url_a = f"https://s.wordpress.com/mshots/v1/{url_a}?w={width}"
-    api_url_b = f"https://s.wordpress.com/mshots/v1/{url_b}?w={width}"
+    # 【修正ポイント】より高精度で即時レスポンスを返す無料APIに変更
+    # WordPressより高速で、生成中エラーを起こしにくいエンドポイントです
+    api_url_a = f"https://image.thumbalizr.com/api/v1/embed/free/a8cf0734bcdd1c4377bb4599f57ebbf7/?url={url_a}&width={width}"
+    api_url_b = f"https://image.thumbalizr.com/api/v1/embed/free/a8cf0734bcdd1c4377bb4599f57ebbf7/?url={url_b}&width={width}"
 
-    # サーバー側では何も処理せず、生成したAPI URLを直接JavaScriptに渡して描画させるHTMLを返す
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>デザイン差分結果（ブラウザ処理版）</title>
+<title>デザイン差分結果</title>
 <style>
 body {{ background: #222; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 20px 0 170px 0; }}
 .viewer {{ position: relative; display: inline-block; border: 2px solid #555; margin-top: 20px; line-height: 0; min-width: 300px; min-height: 300px; background: #333; }}
@@ -50,12 +48,10 @@ body {{ background: #222; color: #fff; font-family: sans-serif; text-align: cent
 </head>
 <body>
 <h1>デザイン差分比較結果</h1>
-<div id="status">🔄 外部APIからスクリーンショットを取得中... (初回は30秒〜1分ほどかかる場合があります)</div>
+<div id="status">🔄 外部APIからスクリーンショットを読み込み中...</div>
 
 <div class="viewer">
-    <!-- 本番サイト画像 -->
     <img id="baseImg" class="base-image" crossorigin="anonymous">
-    <!-- 差分描画用Canvas -->
     <canvas class="diff-layer-canvas" id="diffCanvas"></canvas>
 </div>
 
@@ -77,7 +73,6 @@ const ctx = canvas.getContext('2d');
 const statusDiv = document.getElementById('status');
 const baseImg = document.getElementById('baseImg');
 
-// WordPress APIのURL
 const urlA = "{api_url_a}";
 const urlB = "{api_url_b}";
 
@@ -91,24 +86,22 @@ let loadedCount = 0;
 function checkImages() {{
     loadedCount++;
     if (loadedCount === 2) {{
-        statusDiv.innerText = "🧠 ブラウザ側で差分を計算中...";
-        setTimeout(processDiff, 500); // 画像描写安定のための微小バッファ
+        statusDiv.innerText = "🧠 差分を計算中...";
+        setTimeout(processDiff, 300);
     }}
 }}
 
-// 画像読み込み開始
 imgA.src = urlA;
 imgB.src = urlB;
 
 imgA.onload = () => {{
-    baseImg.src = imgA.src; // 見栄え用ベース画像にセット
+    baseImg.src = imgA.src;
     checkImages();
 }};
 imgB.onload = checkImages;
 
-// APIが生成中の場合、たまにロードエラーになるかダミー画像が返るためリトライを促す
 imgA.onerror = imgB.onerror = () => {{
-    statusDiv.innerHTML = "⚠️ スクショ生成中、またはURLにアクセスできませんでした。<br>APIの生成完了まで数秒待ってから、このページを【再読み込み(F5)】してください。";
+    statusDiv.innerHTML = "⚠️ スクショAPIの読み込みに失敗しました。<br>比較先URLが正しいか、またはローカルIP（localhost等）ではなく公開URL（https://...）を指定しているか確認してください。";
 }};
 
 function hexToRgb(hex) {{
@@ -120,15 +113,14 @@ function processDiff() {{
     const width = Math.min(imgA.width, imgB.width);
     const height = Math.min(imgA.height, imgB.height);
 
-    if(width === 0 || height === 0) {{
-        statusDiv.innerText = "⚠️ 画像サイズが正しく取得できませんでした。再読み込みしてください。";
+    if(width <= 0 || height <= 0) {{
+        statusDiv.innerText = "⚠️ 画像データの取得サイズが不正です。別のURLで試してください。";
         return;
     }}
 
     canvas.width = width;
     canvas.height = height;
 
-    // 一時的にCanvasに両方の画像を置いてピクセルデータを抽出
     ctx.drawImage(imgA, 0, 0, width, height);
     const dataA = ctx.getImageData(0, 0, width, height).data;
 
@@ -136,12 +128,10 @@ function processDiff() {{
     ctx.drawImage(imgB, 0, 0, width, height);
     const dataB = ctx.getImageData(0, 0, width, height).data;
 
-    // 差分結果用のイメージデータを作成
     const resultImgData = ctx.createImageData(width, height);
     const resData = resultImgData.data;
     const targetColor = hexToRgb(colorPicker.value);
 
-    // 差分アルゴリズムをJavaScript側で高速実行
     for (let i = 0; i < dataA.length; i += 4) {{
         const rDiff = Math.abs(dataA[i] - dataB[i]);
         const gDiff = Math.abs(dataA[i+1] - dataB[i+1]);
@@ -151,13 +141,13 @@ function processDiff() {{
             resData[i] = targetColor.r;
             resData[i+1] = targetColor.g;
             resData[i+2] = targetColor.b;
-            resData[i+3] = 255; // 完全不透明
+            resData[i+3] = 255;
         }} else {{
-            resData[i+3] = 0; // 完全透明
+            resData[i+3] = 0;
         }}
     }}
 
-    window.savedImgData = {{ dataA, dataB, width, height }}; // カラーピッカー連動用に退避
+    window.savedImgData = {{ dataA, dataB, width, height }};
     ctx.putImageData(resultImgData, 0, 0);
     statusDiv.innerText = "✅ 差分比較が完了しました！";
 }}
