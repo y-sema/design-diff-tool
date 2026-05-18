@@ -4,8 +4,11 @@ from PIL import Image, ImageChops
 from playwright.async_api import async_playwright
 
 
+# =========================
+# スクロール処理
+# =========================
 async def scroll_to_bottom_and_back(page):
-    """ページ最下部までスクロールしてアニメーションを発火させた後、先頭に戻る"""
+    """ページを下までスクロールしてアニメーションを発火させる"""
 
     total_height = await page.evaluate("document.body.scrollHeight")
     current_position = 0
@@ -22,9 +25,10 @@ async def scroll_to_bottom_and_back(page):
     await page.wait_for_timeout(500)
 
 
+# =========================
+# Context作成（Basic認証対応）
+# =========================
 async def create_context(browser, basic_id, basic_pw):
-    """Basic認証付きのブラウザコンテキストを作成"""
-
     context_args = {}
 
     if basic_id and basic_pw:
@@ -36,6 +40,9 @@ async def create_context(browser, basic_id, basic_pw):
     return await browser.new_context(**context_args)
 
 
+# =========================
+# スクリーンショット取得
+# =========================
 async def capture_page(
     browser,
     url,
@@ -46,34 +53,39 @@ async def capture_page(
     browser_width,
     browser_height,
 ):
-    """指定URLのフルページスクリーンショットを取得"""
-
-    print(f"🔄 {label} の処理を開始...")
+    print(f"🔄 {label} 開始")
 
     context = await create_context(browser, basic_id, basic_pw)
     page = await context.new_page()
 
     await page.set_viewport_size(
-        {
-            "width": browser_width,
-            "height": browser_height,
-        }
+        {"width": browser_width, "height": browser_height}
     )
 
     try:
         await page.goto(url, wait_until="networkidle", timeout=120000)
+
         await scroll_to_bottom_and_back(page)
-        await page.screenshot(path=save_path, full_page=True)
-        print(f"✅ {label} の撮影完了")
+
+        await page.screenshot(
+            path=save_path,
+            full_page=True
+        )
+
+        print(f"✅ {label} 完了")
+
+    except Exception as e:
+        print(f"❌ {label} エラー: {e}")
 
     finally:
         await context.close()
 
 
+# =========================
+# 差分画像生成
+# =========================
 def create_diff_image(img_a_path, img_b_path, diff_path):
-    """2枚の画像から差分マスク画像を生成"""
-
-    print("🧠 差分画像を生成中...")
+    print("🧠 差分生成中...")
 
     img_a = Image.open(img_a_path).convert("RGBA")
     img_b = Image.open(img_b_path).convert("RGBA")
@@ -100,22 +112,26 @@ def create_diff_image(img_a_path, img_b_path, diff_path):
 
     result.save(diff_path)
 
-    print("✅ 差分画像の生成完了")
+    print("✅ 差分画像生成完了")
 
 
+# =========================
+# HTML生成（Render用）
+# =========================
 def create_result_html(html_path, diff_path, diff_color_hex):
-    """差分確認用HTMLを生成"""
+    print("🌐 HTML生成中...")
 
-    with open(diff_path, "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+    with open(diff_path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode("utf-8")
 
-    diff_base64_url = f"data:image/png;base64,{encoded_string}"
+    diff_base64 = f"data:image/png;base64,{encoded}"
 
     html = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>デザイン差分結果</title>
+<title>差分結果</title>
+
 <style>
 body {{
     background: #222;
@@ -124,169 +140,108 @@ body {{
     text-align: center;
     margin: 0;
     padding: 20px;
-    padding-bottom: 170px;
-}}
-
-h1 {{
-    margin-bottom: 10px;
-}}
-
-p {{
-    color: #ccc;
+    padding-bottom: 160px;
 }}
 
 .viewer {{
     position: relative;
     display: inline-block;
     border: 2px solid #555;
-    margin-top: 20px;
-    line-height: 0;
 }}
 
-.base-image {{
-    display: block;
+.base {{
     max-width: 100%;
+    display: block;
 }}
 
-.diff-layer-canvas {{
+canvas {{
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     pointer-events: none;
-    opacity: 0.85;
 }}
 
-.control-panel {{
+.panel {{
     position: fixed;
-    left: 0;
     bottom: 0;
+    left: 0;
     width: 100%;
-    box-sizing: border-box;
-    padding: 15px 20px;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-top: 1px solid rgba(255, 255, 255, 0.15);
-    z-index: 9999;
+    background: rgba(0,0,0,0.85);
+    padding: 15px;
 }}
 
 .slider {{
-    width: min(800px, 80vw);
-}}
-
-.value {{
-    margin-top: 8px;
-    font-weight: bold;
-    color: {diff_color_hex};
-}}
-
-.color-picker {{
-    width: 50px;
-    height: 32px;
-    border: none;
-    background: none;
-    padding: 0;
-    cursor: pointer;
+    width: 70%;
 }}
 </style>
 </head>
+
 <body>
 
-<h1>デザイン差分比較結果</h1>
-
-<p>
-スライダーで差分の濃さを調整できます。<br>
-カラーピッカーで差分色を変更できます。
-</p>
+<h1>デザイン差分結果</h1>
 
 <div class="viewer">
-    <img src="screenshot_A.png" class="base-image">
-    <canvas class="diff-layer-canvas" id="diffCanvas"></canvas>
+    <img src="/static/results/screenshot_A.png" class="base">
+    <canvas id="c"></canvas>
 </div>
 
-<div class="control-panel">
-    <input
-        type="range"
-        min="0"
-        max="100"
-        value="85"
-        class="slider"
-        id="slider"
-    >
-
-    <div class="value" id="valueText">
-        差分透明度：85%
-    </div>
-
-    <p>
-        <label for="colorPicker">差分色：</label>
-        <input
-            type="color"
-            id="colorPicker"
-            class="color-picker"
-            value="{diff_color_hex}"
-        >
-    </p>
+<div class="panel">
+    <input type="range" id="s" min="0" max="100" value="85" class="slider">
+    <p id="t">透明度: 85%</p>
+    <input type="color" id="col" value="{diff_color_hex}">
 </div>
 
 <script>
-const slider = document.getElementById('slider');
-const valueText = document.getElementById('valueText');
-const colorPicker = document.getElementById('colorPicker');
-const canvas = document.getElementById('diffCanvas');
-const ctx = canvas.getContext('2d');
+const img = new Image();
+img.src = "{diff_base64}";
 
-const maskImg = new Image();
-maskImg.src = '{diff_base64_url}';
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
 
-maskImg.onload = () => {{
-    canvas.width = maskImg.width;
-    canvas.height = maskImg.height;
-    drawDiff(colorPicker.value);
-}};
+const slider = document.getElementById("s");
+const text = document.getElementById("t");
+const color = document.getElementById("col");
 
-function hexToRgb(hex) {{
-    const bigint = parseInt(hex.slice(1), 16);
+img.onload = () => {{
+    c.width = img.width;
+    c.height = img.height;
+    draw(color.value);
+}}
+
+function hexToRgb(hex){{
+    const v = parseInt(hex.slice(1), 16);
     return {{
-        r: (bigint >> 16) & 255,
-        g: (bigint >> 8) & 255,
-        b: bigint & 255
+        r:(v>>16)&255,
+        g:(v>>8)&255,
+        b:v&255
     }};
 }}
 
-function drawDiff(hexColor) {{
-    if (!canvas.width || !canvas.height) return;
+function draw(col){{
+    ctx.clearRect(0,0,c.width,c.height);
+    ctx.drawImage(img,0,0);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(maskImg, 0, 0);
+    const d = ctx.getImageData(0,0,c.width,c.height);
+    const rgb = hexToRgb(col);
 
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imgData.data;
-    const targetColor = hexToRgb(hexColor);
-
-    for (let i = 0; i < data.length; i += 4) {{
-        if (data[i] > 10 && data[i + 1] > 10 && data[i + 2] > 10) {{
-            data[i] = targetColor.r;
-            data[i + 1] = targetColor.g;
-            data[i + 2] = targetColor.b;
+    for(let i=0;i<d.data.length;i+=4){{
+        if(d.data[i]>10){{
+            d.data[i]=rgb.r;
+            d.data[i+1]=rgb.g;
+            d.data[i+2]=rgb.b;
         }}
     }}
 
-    ctx.putImageData(imgData, 0, 0);
+    ctx.putImageData(d,0,0);
 }}
 
-canvas.style.opacity = slider.value / 100;
+slider.oninput = () => {{
+    c.style.opacity = slider.value/100;
+    text.innerText = "透明度: " + slider.value + "%";
+}}
 
-slider.addEventListener('input', () => {{
-    canvas.style.opacity = slider.value / 100;
-    valueText.textContent = '差分透明度：' + slider.value + '%';
-}});
-
-colorPicker.addEventListener('input', () => {{
-    drawDiff(colorPicker.value);
-    valueText.style.color = colorPicker.value;
-}});
+color.oninput = () => draw(color.value);
 </script>
 
 </body>
@@ -297,6 +252,9 @@ colorPicker.addEventListener('input', () => {{
         f.write(html)
 
 
+# =========================
+# メイン処理
+# =========================
 async def run_diff(
     url_a,
     url_b,
@@ -309,47 +267,38 @@ async def run_diff(
     diff_color_hex,
     output_dir,
 ):
-    """差分比較のメイン処理"""
 
     os.makedirs(output_dir, exist_ok=True)
 
-    img_a_path = os.path.join(output_dir, "screenshot_A.png")
-    img_b_path = os.path.join(output_dir, "screenshot_B.png")
-    diff_path = os.path.join(output_dir, "diff_result.png")
-    html_path = os.path.join(output_dir, "design_diff_result.html")
+    img_a = os.path.join(output_dir, "screenshot_A.png")
+    img_b = os.path.join(output_dir, "screenshot_B.png")
+    diff = os.path.join(output_dir, "diff_result.png")
+    html = os.path.join(output_dir, "design_diff_result.html")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--single-process",
+                "--disable-gpu"
+            ],
         )
 
         await capture_page(
-            browser,
-            url_a,
-            basic_id_a,
-            basic_pw_a,
-            img_a_path,
-            "URL_A",
-            browser_width,
-            browser_height,
+            browser, url_a, basic_id_a, basic_pw_a,
+            img_a, "A", browser_width, browser_height
         )
 
         await capture_page(
-            browser,
-            url_b,
-            basic_id_b,
-            basic_pw_b,
-            img_b_path,
-            "URL_B",
-            browser_width,
-            browser_height,
+            browser, url_b, basic_id_b, basic_pw_b,
+            img_b, "B", browser_width, browser_height
         )
 
         await browser.close()
 
-    create_diff_image(img_a_path, img_b_path, diff_path)
-    create_result_html(html_path, diff_path, diff_color_hex)
+    create_diff_image(img_a, img_b, diff)
+    create_result_html(html, diff, diff_color_hex)
 
-    return html_path
-
+    return html
