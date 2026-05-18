@@ -3,5 +3,7 @@ services:
     name: design-diff-tool
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+    buildCommand: |
+      pip install -r requirements.txt
+      python -m playwright install chromium
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
