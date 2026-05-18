@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+}
+button {
+    margin-top: 30px;
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+}
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+</style>
+</head>
+<body>
+
+<h1>デザイン差分比較ツール</h1>
+
+<form action="/compare" method="post" target="_blank">
+
+    <label>本番URL</label>
+    <input type="url" name="url_a" required>
+
+    <label>テストURL</label>
+    <input type="url" name="url_b" required>
+
+    <div class="grid">
+        <div>
+            <label>本番 Basic ID</label>
+            <input type="text" name="basic_id_a">
+        </div>
+        <div>
+            <label>本番 Basic PW</label>
+            <input type="password" name="basic_pw_a">
+        </div>
+    </div>
+
+    <div class="grid">
+        <div>
+            <label>テスト Basic ID</label>
+            <input type="text" name="basic_id_b">
+        </div>
+        <div>
+            <label>テスト Basic PW</label>
+            <input type="password" name="basic_pw_b">
+        </div>
+    </div>
+
+    <div class="grid">
+        <div>
+            <label>差分色</label>
+            <input type="color" name="diff_color" value="#ff0000">
+        </div>
+        <div>
+            <label>幅</label>
+            <input type="number" name="width" value="1280">
+        </div>
+    </div>
+
+    <label>高さ</label>
+    <input type="number" name="height" value="800">
+
+    <button type="submit">比較開始（別タブで開く）</button>
+
+</form>
+
+</body>
+</html>
