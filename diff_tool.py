@@ -1,4 +1,13 @@
 import os
+        }}
+    }}
+
+    ctx.putImageData(imgData, 0, 0);
+}}
+
+canvas.style.opacity = slider.value / 100;
+
+slider.addEventListener('input', () => {{
     canvas.style.opacity = slider.value / 100;
     valueText.textContent = '差分透明度：' + slider.value + '%';
 }});
