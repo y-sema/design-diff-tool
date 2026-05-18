@@ -8,7 +8,7 @@ from playwright.async_api import async_playwright
 # スクロール処理
 # =========================
 async def scroll_to_bottom_and_back(page):
-    """ページを下までスクロールしてアニメーションを発火させる"""
+    """アニメーション発火用スクロール"""
 
     total_height = await page.evaluate("document.body.scrollHeight")
     current_position = 0
@@ -26,7 +26,7 @@ async def scroll_to_bottom_and_back(page):
 
 
 # =========================
-# Context作成（Basic認証対応）
+# Context生成
 # =========================
 async def create_context(browser, basic_id, basic_pw):
     context_args = {}
@@ -41,7 +41,7 @@ async def create_context(browser, basic_id, basic_pw):
 
 
 # =========================
-# スクリーンショット取得
+# スクショ取得
 # =========================
 async def capture_page(
     browser,
@@ -82,7 +82,7 @@ async def capture_page(
 
 
 # =========================
-# 差分画像生成
+# 差分生成
 # =========================
 def create_diff_image(img_a_path, img_b_path, diff_path):
     print("🧠 差分生成中...")
@@ -112,11 +112,11 @@ def create_diff_image(img_a_path, img_b_path, diff_path):
 
     result.save(diff_path)
 
-    print("✅ 差分画像生成完了")
+    print("✅ 差分生成完了")
 
 
 # =========================
-# HTML生成（Render用）
+# HTML生成（Render対応）
 # =========================
 def create_result_html(html_path, diff_path, diff_color_hex):
     print("🌐 HTML生成中...")
@@ -130,49 +130,49 @@ def create_result_html(html_path, diff_path, diff_color_hex):
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>差分結果</title>
+<title>Design Diff</title>
 
 <style>
 body {{
-    background: #222;
-    color: #fff;
-    font-family: sans-serif;
-    text-align: center;
-    margin: 0;
-    padding: 20px;
-    padding-bottom: 160px;
+    background:#222;
+    color:#fff;
+    font-family:sans-serif;
+    text-align:center;
+    margin:0;
+    padding:20px;
+    padding-bottom:160px;
 }}
 
 .viewer {{
-    position: relative;
-    display: inline-block;
-    border: 2px solid #555;
+    position:relative;
+    display:inline-block;
+    border:2px solid #555;
 }}
 
 .base {{
-    max-width: 100%;
-    display: block;
+    max-width:100%;
+    display:block;
 }}
 
 canvas {{
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
 }}
 
 .panel {{
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: rgba(0,0,0,0.85);
-    padding: 15px;
+    position:fixed;
+    bottom:0;
+    left:0;
+    width:100%;
+    background:rgba(0,0,0,0.85);
+    padding:15px;
 }}
 
 .slider {{
-    width: 70%;
+    width:70%;
 }}
 </style>
 </head>
@@ -253,7 +253,7 @@ color.oninput = () => draw(color.value);
 
 
 # =========================
-# メイン処理
+# メイン処理（Render安定版）
 # =========================
 async def run_diff(
     url_a,
@@ -276,6 +276,8 @@ async def run_diff(
     html = os.path.join(output_dir, "design_diff_result.html")
 
     async with async_playwright() as p:
+
+        # ★重要：Render安定起動設定
         browser = await p.chromium.launch(
             headless=True,
             args=[
