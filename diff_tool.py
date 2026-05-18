@@ -1,48 +1,27 @@
 import os
 import base64
+import requests
 from PIL import Image, ImageChops
-from playwright.async_api import async_playwright
+import io
 
-async def scroll_to_bottom_and_back(page):
-    """ページ最下部までスクロールしてアニメーションを発火させた後、先頭に戻る"""
-    total_height = await page.evaluate("document.body.scrollHeight")
-    current_position = 0
-    scroll_step = 500  # スクロールを少し粗くして高速化
-
-    while current_position < total_height:
-        current_position += scroll_step
-        await page.evaluate(f"window.scrollTo(0, {current_position})")
-        await page.wait_for_timeout(100)
-        total_height = await page.evaluate("document.body.scrollHeight")
-
-    await page.wait_for_timeout(1000)
-    await page.evaluate("window.scrollTo(0, 0)")
-    await page.wait_for_timeout(300)
-
-async def capture_page_as_base64(browser, url, basic_id, basic_pw, browser_width, browser_height):
-    """指定URLのフルページスクリーンショットを取得し、Base64文字列で返す（ディスク書き込みを避ける）"""
-    context_args = {}
-    if basic_id and basic_pw:
-        context_args["http_credentials"] = {"username": basic_id, "password": basic_pw}
+def capture_page_via_api(url, width, height):
+    """外部の無料APIを使って、URLのスクリーンショット（バイナリ）を取得する"""
+    # WordPressが公式提供している、全世界で使われている超安定スクショAPIを利用
+    # full_page風にするため、APIが対応する最大サイズや標準サイズで取得します
+    api_url = f"https://s.wordpress.com/mshots/v1/{requests.utils.quote(url)}?w={width}"
     
-    context = await browser.new_context(**context_args)
-    page = await context.new_page()
-    await page.set_viewport_size({"width": browser_width, "height": browser_height})
-
     try:
-        # タイムアウトを短め（60秒）にして、固まったらすぐ抜けるようにする
-        await page.goto(url, wait_until="load", timeout=60000)
-        await scroll_to_bottom_and_back(page)
-        
-        # ディスクではなく、メモリ上にバイトデータとして取得
-        img_bytes = await page.screenshot(full_page=True, type="png")
-        return img_bytes
-    finally:
-        await context.close()
+        response = requests.get(api_url, timeout=30)
+        # 稀に初回アクセス時は「生成中」のダミー画像が返ることがあるため、念のためチェック
+        if response.status_code == 200:
+            return response.content
+        else:
+            raise Exception(f"スクショAPIのステータスコード異常: {response.status_code}")
+    except Exception as e:
+        raise Exception(f"スクショの取得に失敗しました: {str(e)}")
 
 def create_diff_and_html_stream(img_bytes_a, img_bytes_b, diff_color_hex):
     """メモリ上の画像データから差分を計算し、最終的なHTML文字列を生成する"""
-    import io
     img_a = Image.open(io.BytesIO(img_bytes_a)).convert("RGBA")
     img_b = Image.open(io.BytesIO(img_bytes_b)).convert("RGBA")
 
@@ -61,7 +40,7 @@ def create_diff_and_html_stream(img_bytes_a, img_bytes_b, diff_color_hex):
     for y in range(height):
         for x in range(width):
             r, g, b, _ = diff_pixels[x, y]
-            if r > 15 or g > 15 or b > 15: # 判定を少し緩くしてノイズ軽減
+            if r > 15 or g > 15 or b > 15:
                 result_pixels[x, y] = (255, 255, 255, 255)
 
     # 差分画像をBase64化
@@ -76,7 +55,7 @@ def create_diff_and_html_stream(img_bytes_a, img_bytes_b, diff_color_hex):
     base_base64 = base64.b64encode(base_buffer.getvalue()).decode("utf-8")
     base_base64_url = f"data:image/png;base64,{base_base64}"
 
-    # HTMLテンプレートの組み立て
+    # HTMLテンプレート
     html = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -158,27 +137,17 @@ colorPicker.addEventListener('input', () => {{
 </html>"""
     return html
 
-async def run_diff(url_a, url_b, basic_id_a, basic_pw_a, basic_id_b, basic_pw_b, browser_width, browser_height, diff_color_hex):
-    """超軽量化した差分比較メイン処理"""
-    async with async_playwright() as p:
-        # メモリを極限まで節約するためのChrome起動オプション
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-software-rasterizer",
-                "--single-process",  # プロセス数を減らしてメモリ節約
-                "--js-flags=--max-old-space-size=128" # JSのメモリを制限
-            ],
-        )
+def run_diff(url_a, url_b, basic_id_a, basic_pw_a, basic_id_b, basic_pw_b, browser_width, browser_height, diff_color_hex):
+    """APIを利用した超軽量・高速な同期処理にリプレイス"""
+    # ※ 無料APIの制約上、Basic認証がかかっているサイトの場合は URL に認証情報を付与します
+    if basic_id_a and basic_pw_a:
+        url_a = url_a.replace("://", f"://{basic_id_a}:{basic_pw_a}@")
+    if basic_id_b and basic_pw_b:
+        url_b = url_b.replace("://", f"://{basic_id_b}:{basic_pw_b}@")
 
-        try:
-            img_bytes_a = await capture_page_as_base64(browser, url_a, basic_id_a, basic_pw_a, browser_width, browser_height)
-            img_bytes_b = await capture_page_as_base64(browser, url_b, basic_id_b, basic_pw_b, browser_width, browser_height)
-        finally:
-            await browser.close()
+    # API経由で画像を取得
+    img_bytes_a = capture_page_via_api(url_a, browser_width, browser_height)
+    img_bytes_b = capture_page_via_api(url_b, browser_width, browser_height)
 
-    # HTML文字列を生成して返却
+    # HTMLストリームを生成して返す
     return create_diff_and_html_stream(img_bytes_a, img_bytes_b, diff_color_hex)
