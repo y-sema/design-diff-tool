@@ -4,96 +4,35 @@
     <meta charset="UTF-8">
     <title>デザイン差分比較ツール</title>
     <style>
-        body {
-            font-family: sans-serif;
-            max-width: 600px;
-            margin: 40px auto;
-            padding: 0 20px;
-            background: #f9f9f9;
-        }
-        label {
-            display: block;
-            margin-top: 15px;
-            font-weight: bold;
-        }
-        input[type="url"], input[type="text"], input[type="password"], input[type="number"] {
-            width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-            box-sizing: border-box;
-        }
-        button {
-            margin-top: 30px;
-            padding: 12px 24px;
-            font-size: 16px;
-            cursor: pointer;
-            width: 100%;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
+        body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; background: #f9f9f9; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="file"], input[type="color"] { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; padding: 12px 20px; font-size: 16px; cursor: pointer; border-radius: 4px; width: 100%; }
+        button:hover { background: #0056b3; }
     </style>
 </head>
 <body>
-
-<h1>デザイン差分比較ツール</h1>
-
-<form action="/compare" method="post" target="_blank">
-
-    <label>本番URL</label>
-    <input type="url" name="url_a" placeholder="https://example.com" required>
-
-    <label>テストURL</label>
-    <input type="url" name="url_b" placeholder="https://dev.example.com" required>
-
-    <div class="grid">
-        <div>
-            <label>本番 Basic ID</label>
-            <input type="text" name="basic_id_a">
+    <h1>📐 デザイン差分比較ツール</h1>
+    <p>比較したい2枚のスクリーンショット画像（PNGやJPEG）を選択してください。</p>
+    
+    <form action="/compare" method="POST" enctype="multipart/form-data" target="_blank">
+        <div class="form-group">
+            <label for="image_a">画像A（ベース・本番環境など）:</label>
+            <input type="file" id="image_a" name="image_a" accept="image/*" required>
         </div>
-        <div>
-            <label>本番 Basic PW</label>
-            <input type="password" name="basic_pw_a">
+        
+        <div class="form-group">
+            <label for="image_b">画像B（修正後・ステージング環境など）:</label>
+            <input type="file" id="image_b" name="image_b" accept="image/*" required>
         </div>
-    </div>
 
-    <div class="grid">
-        <div>
-            <label>テスト Basic ID</label>
-            <input type="text" name="basic_id_b">
+        <div class="form-group">
+            <label for="diff_color">差分ハイライト色:</label>
+            <input type="color" id="diff_color" name="diff_color" value="#ff0000">
         </div>
-        <div>
-            <label>テスト Basic PW</label>
-            <input type="password" name="basic_pw_b">
-        </div>
-    </div>
-
-    <div class="grid">
-        <div>
-            <label>差分色</label>
-            <input type="color" name="diff_color" value="#ff0000">
-        </div>
-        <div>
-            <label>幅</label>
-            <input type="number" name="width" value="1280">
-        </div>
-    </div>
-
-    <label>高さ</label>
-    <input type="number" name="height" value="800">
-
-    <button type="submit">比較開始（処理に1分ほどかかります）</button>
-
-</form>
-
+        
+        <button type="submit">差分を比較する（別タブで開く）</button>
+    </form>
 </body>
 </html>
