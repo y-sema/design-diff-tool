@@ -5,11 +5,9 @@ from playwright.async_api import async_playwright
 
 
 # =========================
-# スクロール処理
+# スクロール（アニメーション対策）
 # =========================
 async def scroll_to_bottom_and_back(page):
-    """アニメーション発火用スクロール"""
-
     total_height = await page.evaluate("document.body.scrollHeight")
     current_position = 0
     scroll_step = 400
@@ -26,18 +24,18 @@ async def scroll_to_bottom_and_back(page):
 
 
 # =========================
-# Context生成
+# Context作成（Basic認証対応）
 # =========================
 async def create_context(browser, basic_id, basic_pw):
-    context_args = {}
+    args = {}
 
     if basic_id and basic_pw:
-        context_args["http_credentials"] = {
+        args["http_credentials"] = {
             "username": basic_id,
             "password": basic_pw,
         }
 
-    return await browser.new_context(**context_args)
+    return await browser.new_context(**args)
 
 
 # =========================
@@ -50,17 +48,15 @@ async def capture_page(
     basic_pw,
     save_path,
     label,
-    browser_width,
-    browser_height,
+    width,
+    height,
 ):
     print(f"🔄 {label} 開始")
 
     context = await create_context(browser, basic_id, basic_pw)
     page = await context.new_page()
 
-    await page.set_viewport_size(
-        {"width": browser_width, "height": browser_height}
-    )
+    await page.set_viewport_size({"width": width, "height": height})
 
     try:
         await page.goto(url, wait_until="networkidle", timeout=120000)
@@ -82,7 +78,7 @@ async def capture_page(
 
 
 # =========================
-# 差分生成
+# 差分画像生成
 # =========================
 def create_diff_image(img_a_path, img_b_path, diff_path):
     print("🧠 差分生成中...")
@@ -116,7 +112,7 @@ def create_diff_image(img_a_path, img_b_path, diff_path):
 
 
 # =========================
-# HTML生成（Render対応）
+# HTML生成（Render用）
 # =========================
 def create_result_html(html_path, diff_path, diff_color_hex):
     print("🌐 HTML生成中...")
@@ -134,12 +130,12 @@ def create_result_html(html_path, diff_path, diff_color_hex):
 
 <style>
 body {{
+    margin:0;
+    padding:20px;
     background:#222;
     color:#fff;
     font-family:sans-serif;
     text-align:center;
-    margin:0;
-    padding:20px;
     padding-bottom:160px;
 }}
 
@@ -149,7 +145,7 @@ body {{
     border:2px solid #555;
 }}
 
-.base {{
+img {{
     max-width:100%;
     display:block;
 }}
@@ -182,7 +178,7 @@ canvas {{
 <h1>デザイン差分結果</h1>
 
 <div class="viewer">
-    <img src="/static/results/screenshot_A.png" class="base">
+    <img src="/static/results/screenshot_A.png">
     <canvas id="c"></canvas>
 </div>
 
@@ -262,8 +258,8 @@ async def run_diff(
     basic_pw_a,
     basic_id_b,
     basic_pw_b,
-    browser_width,
-    browser_height,
+    width,
+    height,
     diff_color_hex,
     output_dir,
 ):
@@ -277,25 +273,25 @@ async def run_diff(
 
     async with async_playwright() as p:
 
-        # ★重要：Render安定起動設定
+        # ★Render安定設定（重要）
         browser = await p.chromium.launch(
             headless=True,
             args=[
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
-                "--single-process",
-                "--disable-gpu"
+                "--disable-setuid-sandbox",
+                "--disable-gpu",
             ],
         )
 
         await capture_page(
             browser, url_a, basic_id_a, basic_pw_a,
-            img_a, "A", browser_width, browser_height
+            img_a, "A", width, height
         )
 
         await capture_page(
             browser, url_b, basic_id_b, basic_pw_b,
-            img_b, "B", browser_width, browser_height
+            img_b, "B", width, height
         )
 
         await browser.close()
