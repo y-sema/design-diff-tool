@@ -1,112 +1,58 @@
-# app.py（完成版）
-
-```python
 import os
-import time
 import asyncio
-import traceback
-
-from flask import Flask, render_template, request, redirect, url_for
-
+from flask import Flask, render_template, request
 from diff_tool import run_diff
 
-
 app = Flask(__name__)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+OUTPUT_DIR = os.path.join(BASE_DIR, "static", "results")
 
 
 @app.route("/")
 def index():
-    """入力フォーム表示"""
     return render_template("form.html")
 
 
 @app.route("/compare", methods=["POST"])
 def compare():
-    """フォーム送信後に差分比較を実行し、結果HTMLへリダイレクト"""
+    url_a = request.form["url_a"]
+    url_b = request.form["url_b"]
 
-    try:
-        # -----------------------------
-        # フォーム値の取得
-        # -----------------------------
-        url_a = request.form["url_a"]
-        url_b = request.form["url_b"]
+    basic_id_a = request.form.get("basic_id_a", "")
+    basic_pw_a = request.form.get("basic_pw_a", "")
+    basic_id_b = request.form.get("basic_id_b", "")
+    basic_pw_b = request.form.get("basic_pw_b", "")
 
-        basic_id_a = request.form.get("basic_id_a", "")
-        basic_pw_a = request.form.get("basic_pw_a", "")
+    width = int(request.form.get("width", 1280))
+    height = int(request.form.get("height", 800))
 
-        basic_id_b = request.form.get("basic_id_b", "")
-        basic_pw_b = request.form.get("basic_pw_b", "")
+    diff_color = request.form.get("diff_color", "#ff0000")
 
-        browser_width = int(request.form.get("browser_width", 1280))
-        browser_height = int(request.form.get("browser_height", 800))
-
-        diff_color_hex = request.form.get("diff_color", "#ff0000")
-
-        # -----------------------------
-        # 出力先ディレクトリ
-        # -----------------------------
-        timestamp = str(int(time.time()))
-        output_dir = os.path.join("static", "results", timestamp)
-        os.makedirs(output_dir, exist_ok=True)
-
-        # -----------------------------
-        # 差分比較実行
-        # -----------------------------
-        asyncio.run(
-            run_diff(
-                url_a,
-                url_b,
-                basic_id_a,
-                basic_pw_a,
-                basic_id_b,
-                basic_pw_b,
-                browser_width,
-                browser_height,
-                diff_color_hex,
-                output_dir,
-            )
+    # async処理を同期から実行
+    html_path = asyncio.run(
+        run_diff(
+            url_a=url_a,
+            url_b=url_b,
+            basic_id_a=basic_id_a,
+            basic_pw_a=basic_pw_a,
+            basic_id_b=basic_id_b,
+            basic_pw_b=basic_pw_b,
+            browser_width=width,
+            browser_height=height,
+            diff_color_hex=diff_color,
+            output_dir=OUTPUT_DIR,
         )
+    )
 
-        # -----------------------------
-        # 結果HTMLへリダイレクト
-        # -----------------------------
-        return redirect(
-            url_for(
-                "static",
-                filename=f"results/{timestamp}/design_diff_result.html",
-            )
-        )
-
-    except Exception:
-        # Render の Logs に詳細エラーを出力
-        print("\n===== ERROR START =====")
-        traceback.print_exc()
-        print("===== ERROR END =====\n")
-
-        return "Internal Server Error", 500
+    # Renderでは絶対パス返すと見れないのでURL化
+    return f"""
+    <h2>完了</h2>
+    <a href="/static/results/design_diff_result.html" target="_blank">
+        結果を見る
+    </a>
+    """
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
-```
-
----
-
-## 保存後に実行するコマンド
-
-```bash
-git add app.py
-git commit -m "Update app.py with detailed error logging"
-git push
-```
-
----
-
-## 次の手順
-
-1. Render が自動で再デプロイされる
-2. フォームから比較実行
-3. Render の Logs を確認
-4. `===== ERROR START =====` 〜 `===== ERROR END =====` を確認
-
-そのログを貼れば、原因を特定できます。
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
